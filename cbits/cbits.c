@@ -57,13 +57,12 @@ int _hs_mask_chunk(
         mask_shift = mask_shift == 24 ? 0 : (mask_shift + 8);
     }
 
-    /* Set up 32 byte mask. */
-    mask32 = (uint64_t)(rotl32(mask, mask_shift));
-    mask32 |= (mask32 << 32);
+    /* Set up 32 bit mask. */
+    mask32 = (uint32_t)(rotl32(mask, mask_shift));
 
     /* Take the fast road. */
     while (p < payload_end - 3) {
-        uint64_t *p32 = (uint64_t*)p;
+        uint32_t *p32 = (uint32_t*)p;
         *p32 ^= mask32;
         p += 4;
     }
@@ -78,4 +77,42 @@ int _hs_mask_chunk(
     }
 
     return mask_shift;
+}
+
+void _hs_simple_mask_chunk(
+        uint32_t mask, int mask_shift,
+        uint8_t *payload_start, size_t payload_len,
+        uint8_t *target) {
+    const uint8_t *payload_end = payload_start + payload_len;
+
+    uint8_t *p = payload_start;
+
+#if defined(__x86_64__)
+    uint64_t mask64;
+    /* Set up 64 byte mask. */
+    mask64 = (uint64_t)(rotl32(mask, mask_shift));
+    mask64 |= (mask64 << 32);
+    /* Take the fast road. */
+    while (p < payload_end - 7) {
+        *(uint64_t *)target = *(uint64_t*)p ^ mask64;
+        p += 8;target += 8;
+    }
+#elif defined(__i386__)
+    /* Set up 32 byte mask. */
+    uint32_t mask32;
+    mask32 = (uint32_t)(rotl32(mask, mask_shift));
+
+    /* Take the fast road. */
+    while (p < payload_end - 3) {
+        *(uint32_t *)target = *(uint32_t*)p ^ mask32;
+        p += 4;target += 4;
+    }
+#endif
+
+    /* This is the slow path which also handles the un-aligned suffix. */
+    while (p != payload_end) {
+        *target = *p ^ (uint8_t)(mask >> mask_shift);
+        p++;target++;
+        mask_shift = mask_shift == 24 ? 0 : (mask_shift + 8);
+    }
 }

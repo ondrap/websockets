@@ -31,14 +31,18 @@ main = defaultMain [
                 ]
             ,  bgroup "full_mask"
                 [ bench "current" $ nf (maskPayload (Just "\xFF\xFF\xFF\xFF")) kilo
+                , bench "simple" $ nf (maskPayloadSimple (Just "\xFF\xFF\xFF\xFF")) kilo
+                , bench "simple-unaligned" $ nf (maskPayloadSimple (Just "\xFF\xFF\xFF\xFF")) (BL.drop 1 kilo)
                 , bench "old" $ nf (maskPayload' (Just "\xFF\xFF\xFF\xFF")) kilo
                 ]
             ,  bgroup "one_byte_mask"
                 [ bench "current" $ nf (maskPayload (Just "\xCC\xCC\xCC\xCC")) kilo
+                , bench "simple" $ nf (maskPayloadSimple (Just "\xCC\xCC\xCC\xCC")) kilo
                 , bench "old" $ nf (maskPayload' (Just "\xCC\xCC\xCC\xCC")) kilo
                 ]
             ,  bgroup "other_mask"
                 [ bench "current" $ nf (maskPayload (Just "\xB0\xA2\xB0\xA2")) kilo
+                , bench "simple" $ nf (maskPayloadSimple (Just "\xB0\xA2\xB0\xA2")) kilo
                 , bench "old" $ nf (maskPayload' (Just "\xB0\xA2\xB0\xA2")) kilo
                 ]
             ]
@@ -49,14 +53,19 @@ main = defaultMain [
                 ]
             ,  bgroup "full_mask"
                 [ bench "current" $ nf (maskPayload (Just "\xFF\xFF\xFF\xFF")) mega
+                , bench "current-unaligned" $ nf (maskPayload (Just "\xFF\xFF\xFF\xFF")) (BL.drop 1 mega)
+                , bench "simple" $ nf (maskPayloadSimple (Just "\xFF\xFF\xFF\xFF")) mega
+                , bench "simple-unaligned" $ nf (maskPayloadSimple (Just "\xFF\xFF\xFF\xFF")) (BL.drop 1 mega)
                 , bench "old" $ nf (maskPayload' (Just "\xFF\xFF\xFF\xFF")) mega
                 ]
             ,  bgroup "one_byte_mask"
                 [ bench "current" $ nf (maskPayload (Just "\xCC\xCC\xCC\xCC")) mega
+                , bench "simple" $ nf (maskPayloadSimple (Just "\xCC\xCC\xCC\xCC")) mega
                 , bench "old" $ nf (maskPayload' (Just "\xCC\xCC\xCC\xCC")) mega
                 ]
             ,  bgroup "other_mask"
                 [ bench "current" $ nf (maskPayload (Just "\xB0\xA2\xB0\xA2")) mega
+                , bench "simple" $ nf (maskPayloadSimple (Just "\xB0\xA2\xB0\xA2")) mega
                 , bench "old" $ nf (maskPayload' (Just "\xB0\xA2\xB0\xA2")) mega
                 ]
             ]

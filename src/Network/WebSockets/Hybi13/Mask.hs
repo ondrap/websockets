@@ -7,26 +7,31 @@
 module Network.WebSockets.Hybi13.Mask
     ( Mask
     , maskPayload
+    , maskPayloadSimple
     , randomMask
     ) where
 
 
 --------------------------------------------------------------------------------
-import           Data.Bits            (shiftR)
-import           Data.Bits            (shiftL, (.|.))
+import           Data.Bits            (shiftR, shiftL, (.|.))
 import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as BL
-import           Data.Word            (Word32)
+import           Data.Word            (Word32, Word8)
 import           Foreign.C.Types      (CChar (..), CInt (..), CSize (..))
-import           Foreign.Ptr          (Ptr)
+import           Foreign.Ptr          (Ptr, plusPtr)
 import           System.IO.Unsafe     (unsafePerformIO)
 import           System.Random        (RandomGen, random)
+import           Data.ByteString.Lazy.Internal as BL
+import           Data.ByteString.Internal as BS
+import           Foreign.ForeignPtr (withForeignPtr)
 
 
 --------------------------------------------------------------------------------
 foreign import ccall unsafe "_hs_mask_chunk" c_mask_chunk
     :: Word32 -> CInt -> Ptr CChar -> CSize -> IO CInt
 
+foreign import ccall unsafe "_hs_simple_mask_chunk" c_mask_chunk_simple
+    :: Word32 -> CInt -> Ptr CChar -> CSize -> Ptr Word8 -> IO ()
 
 --------------------------------------------------------------------------------
 -- | ByteString should be exactly 4 bytes long
@@ -48,6 +53,33 @@ randomMask gen = (Just (B.pack [b1, b2, b3, b4]), gen')
 --------------------------------------------------------------------------------
 -- | This is very dangerous because it modifies the contents of the original
 -- bytestring rather than returning a new one.  Use at your own risk.
+maskPayloadSimple :: Mask -> BL.ByteString -> BL.ByteString
+maskPayloadSimple Nothing                   = id
+maskPayloadSimple (Just "\x00\x00\x00\x00") = id
+maskPayloadSimple (Just mask)
+    | B.length mask == 4 = go 0
+    | otherwise          =
+        error "Network.WebSockets.Hybi13.Mask: mask length must be 4"
+  where
+    go _ Empty = Empty
+    go n (Chunk (BS.PS payload off len) rest) =
+        Chunk c1 (go (n + len) rest)
+      where
+        c1 = unsafeCreate len $ \tgt ->
+              withForeignPtr payload $ \ptr -> do
+                  let shift = 8 * (n `rem` 4)
+                  c_mask_chunk_simple mask32 (fromIntegral shift) (ptr `plusPtr` off) (fromIntegral len) tgt
+
+    -- | Puts the mask into a 'Word32' in a way that will allow fast masking on
+    -- little-endian platforms.
+    mask32 :: Word32
+    mask32 =
+        (fromIntegral (B.index mask 0) `shiftL`  0) .|.
+        (fromIntegral (B.index mask 1) `shiftL`  8) .|.
+        (fromIntegral (B.index mask 2) `shiftL` 16) .|.
+        (fromIntegral (B.index mask 3) `shiftL` 24)
+
+
 maskPayload :: Mask -> BL.ByteString -> BL.ByteString
 maskPayload Nothing                   = id
 maskPayload (Just "\x00\x00\x00\x00") = id
